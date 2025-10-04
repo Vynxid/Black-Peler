@@ -70,12 +70,12 @@ jobs:
             cp out/arch/arm64/boot/dtbo.img AnyKernel3/dtbo.img
             cp out/arch/arm64/boot/dtb.img AnyKernel3/dtb.img
             cd AnyKernel3
-            zip -r "../TobrutExotic-MIUI-${{ env.BUILD_TIME }}.zip" *
+            zip -r "../SweetKranul-${{ env.BUILD_TIME }}.zip" *
 
     - name: Upload Flashable zip
       uses: actions/upload-artifact@v4
       with:
-        name: TobrutExotic-MIUI-${{ env.BUILD_TIME }}
+        name: SweetKranul-${{ env.BUILD_TIME }}
         path: AnyKernel3/*
 
     - name: Send to Telegram
@@ -83,6 +83,6 @@ jobs:
           curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendDocument" \
           -F chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
           -F message_thread_id=120979 \
-          -F document=@"TobrutExotic-MIUI-${{ env.BUILD_TIME }}.zip" \
-          -F caption=" Last Version is Cumming "
+          -F document=@"SweetKranul-${{ env.BUILD_TIME }}.zip" \
+          -F caption=" Selamat Pake Sir! "
 
