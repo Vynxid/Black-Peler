@@ -39,8 +39,45 @@ jobs:
             echo "GCC64_PATH=$GITHUB_WORKSPACE/gcc64" >> $GITHUB_ENV
             echo "GCC32_PATH=$GITHUB_WORKSPACE/gcc32" >> $GITHUB_ENV
 
+    - name: Apply SUSFS Patch
+      run: |
+            echo "Applying SUSFS v1.5.7 patch..."
+            if [ -f "BACKPORT-SUSFS-v1.5.7-NON-GKI-4.14.patch" ]; then
+              git apply --reject --whitespace=fix BACKPORT-SUSFS-v1.5.7-NON-GKI-4.14.patch
+              if [ $? -eq 0 ]; then
+                echo "SUSFS patch applied successfully"
+              else
+                echo "SUSFS patch applied with warnings, checking for .rej files..."
+                find . -name "*.rej" -type f
+              fi
+            else
+              echo "SUSFS patch file not found!"
+              exit 1
+            fi
+
+    - name: Enable SUSFS in Kernel Config
+      run: |
+            echo "Enabling SUSFS configuration..."
+            if [ -f "arch/arm64/configs/sweet_defconfig" ]; then
+              cat >> arch/arm64/configs/sweet_defconfig << EOF
+            # SUSFS Configuration
+            CONFIG_KSU_SUSFS=y
+            CONFIG_KSU_SUSFS_SUS_MOUNT=y
+            CONFIG_KSU_SUSFS_SUS_KSTAT=y
+            CONFIG_KSU_SUSFS_SUS_OVERLAYFS=y
+            CONFIG_KSU_SUSFS_TRY_UMOUNT=y
+            CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y
+            CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y
+            EOF
+              echo "SUSFS config added to defconfig"
+            else
+              echo "defconfig not found!"
+              exit 1
+            fi
+
     - name: Clone kernelSU-Next
       run: |
+            echo "Installing KernelSU with SUSFS support..."
             curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s susfs-main
 
     - name: Build Kernel
@@ -49,13 +86,22 @@ jobs:
             export PATH="$CLANG_PATH/bin:$GCC64_PATH/bin:$GCC32_PATH/bin:$PATH"
             export KBUILD_BUILD_USER=user-tobrut
             export KBUILD_BUILD_HOST=exotic-host
-            export KBUILD_COMPILER_STRING="$$CLANG_PATH/clang"
+            export KBUILD_COMPILER_STRING="$CLANG_PATH/bin/clang"
             make O=out ARCH=arm64 sweet_defconfig 
             make -j$(nproc --all) O=out ARCH=arm64 LLVM=1 LLVM_IAS=1 CC=clang \
-              CLANG_TRIPLE=$CLANG_PATH/aarch64-linux-gnu- \
+              CLANG_TRIPLE=aarch64-linux-gnu- \
               CROSS_COMPILE=$GCC64_PATH/bin/aarch64-elf- \
               CROSS_COMPILE_ARM32=$GCC32_PATH/bin/arm-eabi-         
             mv out/.config out/sweet_defconfig.txt
+
+    - name: Verify SUSFS Integration
+      run: |
+            echo "Checking SUSFS version in kernel..."
+            if grep -q "SUSFS_VERSION" include/linux/susfs.h; then
+              grep "SUSFS_VERSION" include/linux/susfs.h
+            else
+              echo "Warning: SUSFS header not found or not properly integrated"
+            fi
 
     - name: Upload configs
       uses: actions/upload-artifact@v4
@@ -70,19 +116,18 @@ jobs:
             cp out/arch/arm64/boot/dtbo.img AnyKernel3/dtbo.img
             cp out/arch/arm64/boot/dtb.img AnyKernel3/dtb.img
             cd AnyKernel3
-            zip -r "../SweetKranul-${{ env.BUILD_TIME }}.zip" *
+            zip -r "../SweetKranul-SUSFS-${{ env.BUILD_TIME }}.zip" *
 
     - name: Upload Flashable zip
       uses: actions/upload-artifact@v4
       with:
-        name: SweetKranul-${{ env.BUILD_TIME }}
-        path: AnyKernel3/*
+        name: SweetKranul-SUSFS-${{ env.BUILD_TIME }}
+        path: SweetKranul-SUSFS-${{ env.BUILD_TIME }}.zip
 
     - name: Send to Telegram
       run: |
           curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendDocument" \
           -F chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
           -F message_thread_id=120979 \
-          -F document=@"SweetKranul-${{ env.BUILD_TIME }}.zip" \
-          -F caption=" Selamat Pake Sir! "
-
+          -F document=@"SweetKranul-SUSFS-${{ env.BUILD_TIME }}.zip" \
+          -F caption="🔥 SweetKranul with SUSFS v1.5.7 | Build: ${{ env.BUILD_TIME }} | Selamat Pake Sir! 🚀"
