@@ -39,19 +39,36 @@ jobs:
             echo "GCC64_PATH=$GITHUB_WORKSPACE/gcc64" >> $GITHUB_ENV
             echo "GCC32_PATH=$GITHUB_WORKSPACE/gcc32" >> $GITHUB_ENV
 
-    - name: Apply SUSFS Patch
+    - name: Apply SUSFS Base Patch
       run: |
-            echo "Applying SUSFS v1.5.7 patch..."
+            echo "Applying SUSFS base support patch for kernel 4.14..."
+            if [ -f "50_add_susfs_in_kernel-4.14.patch" ]; then
+              git apply --reject --whitespace=fix 50_add_susfs_in_kernel-4.14.patch
+              if [ $? -eq 0 ]; then
+                echo "SUSFS base patch applied successfully"
+              else
+                echo "SUSFS base patch failed, checking for .rej files..."
+                find . -name "*.rej" -type f
+                exit 1
+              fi
+            else
+              echo "SUSFS base patch file not found!"
+              exit 1
+            fi
+
+    - name: Apply SUSFS Backport Patch
+      run: |
+            echo "Applying SUSFS v1.5.7 backport patch..."
             if [ -f "BACKPORT-SUSFS-v1.5.7-NON-GKI-4.14.patch" ]; then
               git apply --reject --whitespace=fix BACKPORT-SUSFS-v1.5.7-NON-GKI-4.14.patch
               if [ $? -eq 0 ]; then
-                echo "SUSFS patch applied successfully"
+                echo "SUSFS v1.5.7 backport patch applied successfully"
               else
-                echo "SUSFS patch applied with warnings, checking for .rej files..."
+                echo "SUSFS v1.5.7 backport patch applied with warnings, checking for .rej files..."
                 find . -name "*.rej" -type f
               fi
             else
-              echo "SUSFS patch file not found!"
+              echo "SUSFS backport patch file not found!"
               exit 1
             fi
 
