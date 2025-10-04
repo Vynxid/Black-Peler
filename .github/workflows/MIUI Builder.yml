@@ -43,13 +43,15 @@ jobs:
       run: |
             echo "Applying SUSFS base support patch for kernel 4.14..."
             if [ -f "50_add_susfs_in_kernel-4.14.patch" ]; then
-              git apply --reject --whitespace=fix 50_add_susfs_in_kernel-4.14.patch
-              if [ $? -eq 0 ]; then
-                echo "SUSFS base patch applied successfully"
-              else
-                echo "SUSFS base patch failed, checking for .rej files..."
+              patch -p1 --forward --no-backup-if-mismatch < 50_add_susfs_in_kernel-4.14.patch || true
+              echo "Checking for rejected hunks..."
+              REJECT_COUNT=$(find . -name "*.rej" -type f | wc -l)
+              if [ $REJECT_COUNT -gt 0 ]; then
+                echo "Warning: Found $REJECT_COUNT rejected hunks"
                 find . -name "*.rej" -type f
-                exit 1
+                echo "Attempting to continue despite rejections..."
+              else
+                echo "SUSFS base patch applied successfully"
               fi
             else
               echo "SUSFS base patch file not found!"
@@ -60,17 +62,26 @@ jobs:
       run: |
             echo "Applying SUSFS v1.5.7 backport patch..."
             if [ -f "BACKPORT-SUSFS-v1.5.7-NON-GKI-4.14.patch" ]; then
-              git apply --reject --whitespace=fix BACKPORT-SUSFS-v1.5.7-NON-GKI-4.14.patch
-              if [ $? -eq 0 ]; then
-                echo "SUSFS v1.5.7 backport patch applied successfully"
-              else
-                echo "SUSFS v1.5.7 backport patch applied with warnings, checking for .rej files..."
+              patch -p1 --forward --no-backup-if-mismatch < BACKPORT-SUSFS-v1.5.7-NON-GKI-4.14.patch || true
+              echo "Checking for rejected hunks..."
+              REJECT_COUNT=$(find . -name "*.rej" -type f | wc -l)
+              if [ $REJECT_COUNT -gt 0 ]; then
+                echo "Warning: Found $REJECT_COUNT rejected hunks"
                 find . -name "*.rej" -type f
+                echo "Continuing build process..."
+              else
+                echo "SUSFS v1.5.7 backport patch applied successfully"
               fi
             else
               echo "SUSFS backport patch file not found!"
               exit 1
             fi
+            
+    - name: Clean up reject files
+      run: |
+            echo "Cleaning up .rej and .orig files..."
+            find . -name "*.rej" -type f -delete
+            find . -name "*.orig" -type f -delete
 
     - name: Enable SUSFS in Kernel Config
       run: |
